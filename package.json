@@ -1,0 +1,37 @@
+{
+  "name": "@thinnest-ai/voice-sdk",
+  "version": "0.1.1",
+  "description": "Thinnest AI Voice SDK — add voice AI agents to any web app in 3 lines of code",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm,iife --dts --clean --global-name ThinnestVoiceSDK",
+    "dev": "tsup src/index.ts --format cjs,esm,iife --dts --watch --global-name ThinnestVoiceSDK",
+    "test": "npx serve . -l 3456",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "voice",
+    "ai",
+    "voice-agent",
+    "speech",
+    "thinnest"
+  ],
+  "author": "Thinnest AI <hello@thinnest.ai>",
+  "license": "MIT",
+  "dependencies": {
+    "livekit-client": "^2.8.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thinnestai/voice-sdk"
+  }
+}

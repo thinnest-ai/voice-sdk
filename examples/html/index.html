@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thinnest AI Voice Agent — HTML Example</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0a; color: #e5e5e5;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    }
+    .container { width: 100%; max-width: 440px; padding: 24px; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; text-align: center; }
+    .sub { font-size: 13px; color: #888; text-align: center; margin-bottom: 28px; }
+    .sub a { color: #f97316; text-decoration: none; }
+
+    label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input {
+      width: 100%; padding: 10px 12px; border: 1px solid #333; border-radius: 8px;
+      background: #1a1a1a; color: #e5e5e5; font-size: 14px; margin-bottom: 16px; outline: none;
+    }
+    input:focus { border-color: #f97316; }
+
+    .status-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; margin-bottom: 16px; border-top: 1px solid #222;
+    }
+    .status-bar .left { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+    .dot.active { background: #22c55e; animation: pulse 1.5s infinite; }
+    .dot.error { background: #ef4444; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .timer { font-family: monospace; font-size: 14px; color: #888; }
+
+    .controls { display: flex; gap: 8px; margin-bottom: 16px; }
+    button {
+      flex: 1; padding: 10px; border: 1px solid #333; border-radius: 8px;
+      background: #1a1a1a; color: #e5e5e5; font-size: 14px; cursor: pointer;
+      transition: all 0.15s;
+    }
+    button:hover:not(:disabled) { background: #252525; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-start { background: #16a34a; border-color: #16a34a; color: #fff; font-weight: 600; }
+    .btn-start:hover:not(:disabled) { background: #15803d; }
+    .btn-end { border-color: #ef4444; color: #ef4444; }
+
+    .transcript {
+      background: #111; border: 1px solid #222; border-radius: 8px;
+      padding: 12px; min-height: 200px; max-height: 340px; overflow-y: auto;
+      font-size: 13px; line-height: 1.6;
+    }
+    .transcript:empty::before { content: 'Transcripts will appear here...'; color: #555; }
+    .msg { margin-bottom: 8px; }
+    .msg .role { font-weight: 600; font-size: 11px; text-transform: uppercase; margin-right: 6px; }
+    .msg .role.user { color: #3b82f6; }
+    .msg .role.assistant { color: #f97316; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Voice Agent Demo</h1>
+    <p class="sub">Powered by <a href="https://thinnest.ai">thinnest.ai</a> &middot; <a href="https://www.npmjs.com/package/@thinnest-ai/voice-sdk">@thinnest-ai/voice-sdk</a></p>
+
+    <label>API Key</label>
+    <input id="apiKey" type="text" placeholder="thns_sk_..." />
+
+    <label>Agent ID</label>
+    <input id="agentId" type="text" placeholder="ag_..." />
+
+    <div class="status-bar">
+      <div class="left">
+        <div class="dot" id="dot"></div>
+        <span id="statusText">Idle</span>
+      </div>
+      <span class="timer" id="timer">00:00</span>
+    </div>
+
+    <div class="controls">
+      <button class="btn-start" id="btnStart" onclick="startCall()">Start Call</button>
+      <button class="btn-end" id="btnEnd" onclick="endCall()" disabled>End Call</button>
+      <button id="btnMute" onclick="toggleMute()" disabled>Mute</button>
+    </div>
+
+    <div class="transcript" id="transcript"></div>
+  </div>
+
+  <!-- Load voice SDK from CDN -->
+  <script src="https://unpkg.com/@thinnest-ai/voice-sdk@latest/dist/index.global.js"></script>
+  <script>
+    let voice = null;
+    const $ = (id) => document.getElementById(id);
+
+    function addMsg(role, text) {
+      const div = document.createElement('div');
+      div.className = 'msg';
+      const span = document.createElement('span');
+      span.className = `role ${role}`;
+      span.textContent = role;
+      div.appendChild(span);
+      div.appendChild(document.createTextNode(text));
+      $('transcript').appendChild(div);
+      $('transcript').scrollTop = $('transcript').scrollHeight;
+    }
+
+    let timerHandle = null;
+
+    async function startCall() {
+      const apiKey = $('apiKey').value.trim();
+      const agentId = $('agentId').value.trim();
+      if (!apiKey || !agentId) return alert('Enter API Key and Agent ID');
+
+      // Clean up previous instance
+      if (voice) { voice.removeAllListeners(); await voice.stop().catch(() => {}); }
+
+      // Initialize SDK
+      const ThinnestVoice = ThinnestVoiceSDK.ThinnestVoice || ThinnestVoiceSDK.default;
+      voice = new ThinnestVoice(apiKey);
+
+      // Wire up events
+      voice.on('status-change', ({ status }) => {
+        $('statusText').textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        const dot = $('dot');
+        dot.className = 'dot' + (status === 'active' ? ' active' : status === 'error' ? ' error' : '');
+      });
+
+      voice.on('transcript', ({ role, text, isFinal }) => {
+        if (isFinal) addMsg(role === 'user' ? 'user' : 'assistant', text);
+      });
+
+      voice.on('call-end', ({ duration }) => {
+        addMsg('assistant', `Call ended (${duration}s)`);
+        resetUI();
+      });
+
+      voice.on('error', ({ message }) => {
+        addMsg('assistant', `Error: ${message}`);
+      });
+
+      // Update UI
+      $('btnStart').disabled = true;
+      $('btnEnd').disabled = false;
+      $('btnMute').disabled = false;
+      $('transcript').innerHTML = '';
+
+      try {
+        await voice.start(agentId);
+        // Start timer
+        timerSeconds = 0;
+        $('timer').textContent = '00:00';
+        updateTimer();
+      } catch (e) {
+        addMsg('assistant', `Failed: ${e.message}`);
+        resetUI();
+      }
+    }
+
+    async function endCall() {
+      if (voice) await voice.stop();
+      resetUI();
+    }
+
+    async function toggleMute() {
+      if (!voice) return;
+      const muted = !voice.isMuted;
+      await voice.setMuted(muted);
+      $('btnMute').textContent = muted ? 'Unmute' : 'Mute';
+    }
+
+    function resetUI() {
+      $('btnStart').disabled = false;
+      $('btnEnd').disabled = true;
+      $('btnMute').disabled = true;
+      $('btnMute').textContent = 'Mute';
+      if (timerHandle) { clearTimeout(timerHandle); timerHandle = null; }
+    }
+
+    let timerSeconds = 0;
+    function updateTimer() {
+      if (!voice || voice.callStatus !== 'active') return;
+      timerSeconds++;
+      $('timer').textContent = `${String(Math.floor(timerSeconds/60)).padStart(2,'0')}:${String(timerSeconds%60).padStart(2,'0')}`;
+      timerHandle = setTimeout(updateTimer, 1000);
+    }
+  </script>
+</body>
+</html>
